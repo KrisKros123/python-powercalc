@@ -1,4 +1,4 @@
-"""GithubProfileStore — on-demand profile downloader and updater.
+"""GithubProfileStore - on-demand profile downloader and updater.
 
 Design contract
 ---------------
@@ -111,7 +111,7 @@ class GithubProfileStore:
 
         key = f"{manufacturer}/{model}"
         if key in _visited:
-            # Cycle guard — return a no-op result.
+            # Cycle guard - return a no-op result.
             return DownloadResult(
                 manufacturer=manufacturer,
                 model=model,
@@ -127,7 +127,7 @@ class GithubProfileStore:
         local_path = self._local_path(manufacturer, model)
         already_existed = local_path.is_dir()
 
-        # Fetch directory listing — raises RemoteProfileNotFoundError if absent.
+        # Fetch directory listing - raises RemoteProfileNotFoundError if absent.
         try:
             remote_files = self._client.list_directory(remote_path)
         except RemoteProfileNotFoundError:

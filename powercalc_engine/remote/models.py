@@ -12,7 +12,7 @@ class RemoteFile:
 
     name: str          # filename, e.g. "brightness.csv.gz"
     remote_path: str   # full path inside repo, e.g. "profile_library/signify/LCA001/brightness.csv.gz"
-    sha: str           # Git blob SHA — used as fingerprint for update detection
+    sha: str           # Git blob SHA - used as fingerprint for update detection
     download_url: str  # Direct URL to raw file content
 
 

@@ -1,14 +1,14 @@
-"""Hue-saturation LUT — ``hs.csv(.gz)``.
+"""Hue-saturation LUT - ``hs.csv(.gz)``.
 
 CSV schema (header required):
     bri,hue,sat,watt
 
 Columns
 -------
-bri  : int, 0-255    — brightness level.
-hue  : int, 0-65535  — hue.
-sat  : int, 0-255    — saturation.
-watt : float (dot)   — power draw.
+bri  : int, 0-255    - brightness level.
+hue  : int, 0-65535  - hue.
+sat  : int, 0-255    - saturation.
+watt : float (dot)   - power draw.
 
 Lookup strategy (mirrors original powercalc behaviour)
 ------------------------------------------------------
@@ -116,3 +116,26 @@ def get_hs_power(
     # --- Linear interpolation on brightness ---------------------------------
     ratio = (brightness - lower_bri) / (upper_bri - lower_bri)
     return watt_lower + ratio * (watt_upper - watt_lower)
+
+
+def get_hs_power_multilinear(
+    lut: HsLut,
+    brightness: int,
+    hue: int,
+    saturation: int,
+) -> float:
+    """Trilinear interpolation for (*brightness*, *hue*, *saturation*).
+
+    DEVIATION FROM ORIGINAL - uses full trilinear interpolation instead of
+    nearest-neighbour on the hue and saturation axes.  See
+    :func:`.interpolation.interpolate_3d_trilinear` for details.
+
+    Parameters
+    ----------
+    lut        : Previously loaded :class:`HsLut`.
+    brightness : Target brightness 0-255.
+    hue        : Target hue 0-65535.
+    saturation : Target saturation 0-255.
+    """
+    from .interpolation import interpolate_3d_trilinear
+    return interpolate_3d_trilinear(lut, brightness, hue, saturation)

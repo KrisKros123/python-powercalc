@@ -1,13 +1,13 @@
-"""Color-temperature LUT — ``color_temp.csv(.gz)``.
+"""Color-temperature LUT - ``color_temp.csv(.gz)``.
 
 CSV schema (header required):
     bri,mired,watt
 
 Columns
 -------
-bri   : int, 0-255 — brightness level.
-mired : int — color temperature in mired (micro-reciprocal degrees).
-watt  : float (dot as decimal separator) — power draw.
+bri   : int, 0-255 - brightness level.
+mired : int - color temperature in mired (micro-reciprocal degrees).
+watt  : float (dot as decimal separator) - power draw.
 
 Lookup strategy (mirrors original powercalc behaviour)
 ------------------------------------------------------
@@ -18,7 +18,7 @@ Lookup strategy (mirrors original powercalc behaviour)
    level before interpolation.
 
 The interpolation is performed as follows:
-  a. Find *lower_bri* and *upper_bri* — the surrounding sampled brightness
+  a. Find *lower_bri* and *upper_bri* - the surrounding sampled brightness
      levels (or clamp to boundaries).
   b. At *lower_bri* find the nearest mired key → ``watt_lower``.
   c. At *upper_bri* find the nearest mired key → ``watt_upper``.
@@ -108,3 +108,24 @@ def get_color_temp_power(
     # --- Linear interpolation on brightness ---------------------------------
     ratio = (brightness - lower_bri) / (upper_bri - lower_bri)
     return watt_lower + ratio * (watt_upper - watt_lower)
+
+
+def get_color_temp_power_multilinear(
+    lut: ColorTempLut,
+    brightness: int,
+    color_temp: int,
+) -> float:
+    """Bilinear interpolation for (*brightness*, *color_temp*).
+
+    DEVIATION FROM ORIGINAL - uses full bilinear interpolation instead of
+    nearest-neighbour on the mired axis.  See
+    :func:`.interpolation.interpolate_2d_bilinear` for details.
+
+    Parameters
+    ----------
+    lut         : Previously loaded :class:`ColorTempLut`.
+    brightness  : Target brightness 0-255.
+    color_temp  : Target color temperature in mired.
+    """
+    from .interpolation import interpolate_2d_bilinear
+    return interpolate_2d_bilinear(lut, brightness, color_temp)

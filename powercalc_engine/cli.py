@@ -110,6 +110,13 @@ def _build_parser() -> argparse.ArgumentParser:
     gp.add_argument("--saturation", type=int, default=None)
     gp.add_argument("--color-temp", type=int, default=None)
     gp.add_argument("--effect", default=None)
+    gp.add_argument(
+        "--interpolation-mode",
+        default="powercalc",
+        choices=["powercalc", "multilinear"],
+        dest="interpolation_mode",
+        help="LUT interpolation strategy (default: powercalc)."
+    )
     gp.add_argument("--output", default="plain", choices=["plain", "json"])
 
     # ---- inspect ----------------------------------------------------------
@@ -158,7 +165,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def cmd_get_power(args: argparse.Namespace) -> int:
-    engine = PowercalcEngine(profile_dir=args.profile_dir)
+    engine = PowercalcEngine(
+        profile_dir=args.profile_dir,
+        interpolation_mode=args.interpolation_mode,
+    )
     state = {
         "is_on": _parse_bool(args.is_on),
         "brightness": args.brightness,
@@ -176,7 +186,11 @@ def cmd_get_power(args: argparse.Namespace) -> int:
         return 1
 
     if args.output == "json":
-        print(json.dumps({"watts": watts, "state": state}, indent=2))
+        print(json.dumps({
+            "watts": watts,
+            "interpolation_mode": args.interpolation_mode,
+            "state": state,
+        }, indent=2))
     else:
         print(f"{watts:.4f} W")
     return 0

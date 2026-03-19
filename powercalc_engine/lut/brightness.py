@@ -1,12 +1,12 @@
-"""Brightness LUT — ``brightness.csv(.gz)``.
+"""Brightness LUT - ``brightness.csv(.gz)``.
 
 CSV schema (header required):
     bri,watt
 
 Columns
 -------
-bri  : int, 0-255 — brightness level at which the measurement was taken.
-watt : float (dot as decimal separator) — power draw at that brightness.
+bri  : int, 0-255 - brightness level at which the measurement was taken.
+watt : float (dot as decimal separator) - power draw at that brightness.
 
 Lookup strategy
 ---------------

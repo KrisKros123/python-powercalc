@@ -1,8 +1,8 @@
-# python-powercalc
+# powercalc-engine
 
-Standalone Python library for calculating device power usage from 
+Standalone Python library for calculating device power draw from
 [homeassistant-powercalc](https://github.com/bramstroker/homeassistant-powercalc)
-profile data and LUT files, without any **Home Assistant dependency**.
+profile LUT files - **no Home Assistant dependency**.
 
 ## Requirements
 
@@ -139,6 +139,43 @@ profile_library/
 
 ---
 
+## Interpolation modes
+
+`PowercalcEngine` supports two strategies for looking up power values in the LUT:
+
+| Mode | Description |
+|---|---|
+| `"powercalc"` | **Default.** Original behaviour - linear interpolation on brightness, nearest-neighbour on all other axes (mired, hue, saturation). |
+| `"multilinear"` | **New.** Bilinear interpolation for `color_temp` (brightness × mired) and trilinear for `hs` (brightness × hue × saturation). Falls back to nearest-neighbour per axis when fewer than two sample points exist. |
+
+```python
+from powercalc_engine import PowercalcEngine
+
+# Default - identical to original powercalc behaviour
+engine = PowercalcEngine(profile_dir="profile_library")
+
+# More accurate interpolation
+engine_ml = PowercalcEngine(
+    profile_dir="profile_library",
+    interpolation_mode="multilinear",
+)
+
+watts = engine_ml.get_power(
+    manufacturer="signify",
+    model="LCA001",
+    state={
+        "is_on": True,
+        "brightness": 180,
+        "color_mode": "hs",
+        "hue": 24000,
+        "saturation": 180,
+    },
+)
+```
+
+The `"powercalc"` mode preserves 100% backward compatibility - existing code that
+does not pass `interpolation_mode` is unaffected.
+
 ## Standby / off behaviour
 
 | Condition                                   | Result                          |
@@ -154,6 +191,7 @@ profile_library/
 ### Power calculation
 
 ```bash
+# Default interpolation (nearest-neighbour on non-brightness axes)
 python -m powercalc_engine.cli get-power \
   --profile-dir ./profile_library \
   --manufacturer signify \
@@ -163,6 +201,17 @@ python -m powercalc_engine.cli get-power \
   --color-mode hs \
   --hue 24000 \
   --saturation 180
+
+# Multilinear interpolation (bilinear for color_temp, trilinear for hs)
+python -m powercalc_engine.cli get-power \
+  --profile-dir ./profile_library \
+  --manufacturer ikea \
+  --model LED2101G4 \
+  --is-on true \
+  --brightness 180 \
+  --color-mode color_temp \
+  --color-temp 290 \
+  --interpolation-mode multilinear
 
 # Device off → standby_power
 python -m powercalc_engine.cli get-power \
@@ -209,6 +258,9 @@ python -m powercalc_engine.cli profile update-all \
 #   --repo-name    (default: homeassistant-powercalc)
 #   --repo-ref     (default: master)
 #   --output plain|json
+
+# get-power only:
+#   --interpolation-mode {powercalc,multilinear}  (default: powercalc)
 ```
 
 `profile exists` exits with code **0** if found, **2** if not found, **1** on error -
@@ -410,6 +462,31 @@ ponownego pobierania niezmienioych plików.
 | `hs`         | `hs.csv(.gz)`         | `bri, hue, sat, watt` |
 | `effect`     | `effect.csv(.gz)`     | `effect, bri, watt`   |
 
+### Tryby interpolacji
+
+Silnik obsługuje dwa tryby wyznaczania mocy z tabeli LUT:
+
+| Tryb | Opis |
+|---|---|
+| `"powercalc"` | **Domyślny.** Oryginalne zachowanie - interpolacja liniowa po brightness, nearest-neighbour dla pozostałych osi (mired, hue, saturation). |
+| `"multilinear"` | **Nowy.** Interpolacja bilinearna dla `color_temp` (brightness × mired) i trilinearna dla `hs` (brightness × hue × saturation). Fallback do nearest-neighbour gdy oś ma mniej niż 2 próbki. |
+
+```python
+from powercalc_engine import PowercalcEngine
+
+# Domyślny - identyczny z oryginalnym powercalc
+engine = PowercalcEngine(profile_dir="profile_library")
+
+# Dokładniejsza interpolacja
+engine_ml = PowercalcEngine(
+    profile_dir="profile_library",
+    interpolation_mode="multilinear",
+)
+```
+
+Tryb `"powercalc"` zachowuje pełną kompatybilność wsteczną - istniejący kod
+działający bez parametru `interpolation_mode` nie wymaga żadnych zmian.
+
 ### Zachowanie w trybie czuwania
 
 | Warunek                                           | Wynik                              |
@@ -440,12 +517,20 @@ python -m powercalc_engine.cli profile update \
 python -m powercalc_engine.cli profile update-all \
   --profile-dir ./profile_library
 
-# Oblicz pobór mocy
+# Oblicz pobór mocy (domyślna interpolacja)
 python -m powercalc_engine.cli get-power \
   --profile-dir ./profile_library \
   --manufacturer signify --model LCA001 \
   --is-on true --brightness 180 --color-mode hs \
   --hue 24000 --saturation 180
+
+# Oblicz pobór mocy z interpolacją multilinear
+python -m powercalc_engine.cli get-power \
+  --profile-dir ./profile_library \
+  --manufacturer ikea --model LED2101G4 \
+  --is-on true --brightness 180 \
+  --color-mode color_temp --color-temp 290 \
+  --interpolation-mode multilinear
 ```
 
 ### Wyjątki

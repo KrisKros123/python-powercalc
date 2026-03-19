@@ -5,7 +5,7 @@ Interpolation strategy (mirrors the original powercalc implementation):
   points.  If the target falls below the minimum or above the maximum sampled
   brightness the boundary value is returned (clamping).
 - **All other axes** (hue, saturation, mired, effect): nearest-neighbour
-  selection — the key whose distance to the target is smallest is chosen.
+  selection - the key whose distance to the target is smallest is chosen.
 """
 
 from __future__ import annotations
@@ -131,5 +131,5 @@ def read_csv_rows(file_obj: IO[str]) -> list[list[str]]:
     """Read all non-empty rows from a CSV file, skipping the header row."""
     reader = csv.reader(file_obj)
     rows = list(reader)
-    # First row is the header — skip it.
+    # First row is the header - skip it.
     return [row for row in rows[1:] if row]

@@ -9,53 +9,49 @@ A device is in standby whenever (evaluated in order, short-circuit):
   3. ``brightness == 0``            → standby.
   4. ``brightness is None``         → standby.
 
-That's the complete rule set.  The original brief also mentioned
-``hue=0, saturation=0`` as a standby signal, but those cases are already
-covered: without brightness they fall into rule 4, and with brightness == 0
-they fall into rule 3.  A separate hs-specific branch adds no new behaviour
-and has been removed to keep the function honest about what it actually does.
-
 DEVIATION FROM ORIGINAL: HA always provides brightness from the entity state.
 Rules 3-4 exist only in the standalone library to handle callers that omit or
 zero-out brightness.
 
 Mode selection priority:  effect > hs > color_temp > brightness
+
+Interpolation modes
+-------------------
+"powercalc"   (default) - original behaviour: linear on brightness, nearest-
+              neighbour on all other axes (mired, hue, sat).
+"multilinear" - DEVIATION FROM ORIGINAL: bilinear for color_temp (bri × mired),
+              trilinear for hs (bri × hue × sat).  Falls back to nearest-
+              neighbour per-axis when fewer than 2 sample points exist.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from .exceptions import LutCalculationError, MissingLookupTableError
 from .loader import load_profile
 from .lut.brightness import get_brightness_power, load_brightness_lut
-from .lut.color_temp import get_color_temp_power, load_color_temp_lut
+from .lut.color_temp import (
+    get_color_temp_power,
+    get_color_temp_power_multilinear,
+    load_color_temp_lut,
+)
 from .lut.effect import get_effect_power, load_effect_lut
-from .lut.hs import get_hs_power, load_hs_lut
+from .lut.hs import get_hs_power, get_hs_power_multilinear, load_hs_lut
 from .models import DeviceState, ModelProfile
+
+InterpolationMode = Literal["powercalc", "multilinear"]
+_VALID_MODES = frozenset({"powercalc", "multilinear"})
 
 
 def _is_standby_state(state: DeviceState) -> bool:
-    """Return True when *state* represents a standby / off-like condition.
-
-    Rules (short-circuit, in order)
-    --------------------------------
-    1. ``is_on == False``                → standby.
-    2. ``effect`` is truthy              → NOT standby (active effect).
-    3. ``brightness == 0``               → standby.
-    4. ``brightness is None``            → standby.
-    5. Otherwise                         → not standby.
-    """
+    """Return True when *state* represents a standby / off-like condition."""
     if not state.get("is_on", True):
         return True
-
     if state.get("effect"):
         return False
-
     brightness: int | None = state.get("brightness")  # type: ignore[assignment]
-
-    # Rules 3 and 4 - explicit zero or missing brightness means nothing is lit.
     return brightness is None or brightness == 0
 
 
@@ -64,11 +60,27 @@ class PowercalcEngine:
 
     Parameters
     ----------
-    profile_dir : Root of the profile library (``<manufacturer>/<model>/…``).
+    profile_dir        : Root of the profile library (``<mfr>/<model>/…``).
+    interpolation_mode : ``"powercalc"`` (default - original nearest-neighbour
+                         behaviour) or ``"multilinear"`` (bilinear for
+                         color_temp, trilinear for hs).
+
+    DEVIATION FROM ORIGINAL: ``interpolation_mode`` parameter is new.  The
+    ``"powercalc"`` default preserves the original behaviour exactly.
     """
 
-    def __init__(self, profile_dir: str | Path) -> None:
+    def __init__(
+        self,
+        profile_dir: str | Path,
+        interpolation_mode: InterpolationMode = "powercalc",
+    ) -> None:
+        if interpolation_mode not in _VALID_MODES:
+            raise ValueError(
+                f"interpolation_mode must be one of {sorted(_VALID_MODES)}, "
+                f"got {interpolation_mode!r}"
+            )
         self._profile_dir = Path(profile_dir)
+        self._interpolation_mode: InterpolationMode = interpolation_mode
         self._profile_cache: dict[tuple[str, str], ModelProfile] = {}
         self._lut_cache: dict[tuple[str, str], Any] = {}
 
@@ -82,10 +94,7 @@ class PowercalcEngine:
         model: str,
         state: DeviceState,
     ) -> float:
-        """Return power draw in watts for *state*.
-
-        Returns ``standby_power`` (or 0.0) for standby/off-like states.
-        """
+        """Return power draw in watts for *state*."""
         profile = self._get_profile(manufacturer, model)
         return self._calculate(profile, state)
 
@@ -112,32 +121,40 @@ class PowercalcEngine:
         if _is_standby_state(state):
             return self._standby(profile)
 
-        # brightness is guaranteed positive (non-zero, non-None) here.
         brightness: int = state.get("brightness")  # type: ignore[assignment]
         effect: str | None = state.get("effect")  # type: ignore[assignment]
         color_mode: str | None = state.get("color_mode")  # type: ignore[assignment]
+        multilinear = self._interpolation_mode == "multilinear"
 
-        # Effect mode (highest priority).
+        # Effect mode (highest priority) - linear on bri only, no change.
         if effect and profile.has_mode("effect"):
             try:
-                return get_effect_power(self._get_effect_lut(profile), effect, brightness)
+                return get_effect_power(
+                    self._get_effect_lut(profile), effect, brightness
+                )
             except LutCalculationError:
-                # Unknown effect name - fall through.
-                # DEVIATION FROM ORIGINAL: original emits logger.warning + None.
-                pass
+                pass  # unknown effect → fall through
 
         # HS mode.
         if color_mode == "hs" and profile.has_mode("hs"):
             hue: int = state.get("hue") or 0  # type: ignore[assignment]
             sat: int = state.get("saturation") or 0  # type: ignore[assignment]
-            return get_hs_power(self._get_hs_lut(profile), brightness, hue, sat)
+            lut_hs = self._get_hs_lut(profile)
+            if multilinear:
+                # DEVIATION FROM ORIGINAL: trilinear instead of nearest-neighbour.
+                return get_hs_power_multilinear(lut_hs, brightness, hue, sat)
+            return get_hs_power(lut_hs, brightness, hue, sat)
 
         # Color-temperature mode.
         if color_mode == "color_temp" and profile.has_mode("color_temp"):
             ct: int = state.get("color_temp") or 0  # type: ignore[assignment]
-            return get_color_temp_power(self._get_color_temp_lut(profile), brightness, ct)
+            lut_ct = self._get_color_temp_lut(profile)
+            if multilinear:
+                # DEVIATION FROM ORIGINAL: bilinear instead of nearest-neighbour.
+                return get_color_temp_power_multilinear(lut_ct, brightness, ct)
+            return get_color_temp_power(lut_ct, brightness, ct)
 
-        # Brightness fallback.
+        # Brightness fallback - same in both modes.
         if profile.has_mode("brightness"):
             return get_brightness_power(self._get_brightness_lut(profile), brightness)
 

@@ -1,13 +1,13 @@
-"""Effect LUT — ``effect.csv(.gz)``.
+"""Effect LUT - ``effect.csv(.gz)``.
 
 CSV schema (header required):
     effect,bri,watt
 
 Columns
 -------
-effect : str  — name of the light effect as reported by HA (e.g. "candle").
-bri    : int, 0-255 — brightness level at which the measurement was taken.
-watt   : float (dot) — power draw.
+effect : str  - name of the light effect as reported by HA (e.g. "candle").
+bri    : int, 0-255 - brightness level at which the measurement was taken.
+watt   : float (dot) - power draw.
 
 Lookup strategy (mirrors original powercalc behaviour)
 ------------------------------------------------------

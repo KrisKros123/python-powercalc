@@ -1,6 +1,6 @@
 """Thin HTTP client for GitHub Contents API.
 
-Uses only stdlib (urllib.request / urllib.error) — no third-party deps.
+Uses only stdlib (urllib.request / urllib.error) - no third-party deps.
 
 GitHub Contents API
 -------------------
