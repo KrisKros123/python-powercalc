@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "powercalc-engine"
+version = "0.1.0"
+description = "Standalone powercalc LUT engine - no Home Assistant dependency."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+keywords = ["home-automation", "power-measurement", "lut"]
+
+# No runtime dependencies - only the Python standard library is used.
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+]
+
+[project.scripts]
+powercalc-engine = "powercalc_engine.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["powercalc_engine*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+
+[tool.coverage.run]
+source = ["powercalc_engine"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
